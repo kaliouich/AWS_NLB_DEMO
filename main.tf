@@ -83,15 +83,6 @@ resource "aws_route_table" "public" {
   }
 }
 
-# Private Route Table
-resource "aws_route_table" "private" {
-  vpc_id = aws_vpc.main.id
-
-  tags = {
-    Name = "private-rt"
-  }
-}
-
 # Route Table Associations
 resource "aws_route_table_association" "public" {
   count          = length(aws_subnet.public)
@@ -99,10 +90,49 @@ resource "aws_route_table_association" "public" {
   route_table_id = aws_route_table.public.id
 }
 
+# NAT Gateway for private subnets
+resource "aws_eip" "nat" {
+  count = length(var.public_subnet_cidrs)
+  domain = "vpc"
+
+  tags = {
+    Name = "nat-eip-${count.index + 1}"
+  }
+}
+
+resource "aws_nat_gateway" "main" {
+  count         = length(var.public_subnet_cidrs)
+  allocation_id = aws_eip.nat[count.index].id
+  subnet_id     = aws_subnet.public[count.index].id
+
+  tags = {
+    Name = "main-nat-${count.index + 1}"
+  }
+
+  depends_on = [aws_internet_gateway.main]
+}
+
+# Private Route Tables
+resource "aws_route_table" "private" {
+  count = length(var.private_subnet_cidrs)
+
+  vpc_id = aws_vpc.main.id
+
+  route {
+    cidr_block     = "0.0.0.0/0"
+    nat_gateway_id = aws_nat_gateway.main[count.index % length(aws_nat_gateway.main)].id
+  }
+
+  tags = {
+    Name = "private-rt-${count.index + 1}"
+  }
+}
+
+# Private Route Table Associations
 resource "aws_route_table_association" "private" {
   count          = length(aws_subnet.private)
   subnet_id      = aws_subnet.private[count.index].id
-  route_table_id = aws_route_table.private.id
+  route_table_id = aws_route_table.private[count.index].id
 }
 
 # Network Load Balancer
@@ -152,32 +182,6 @@ resource "aws_lb_listener" "api" {
   }
 }
 
-# Security Group for NLB
-resource "aws_security_group" "nlb" {
-  name        = "nlb-sg"
-  description = "Security group for NLB"
-  vpc_id      = aws_vpc.main.id
-
-  ingress {
-    description = "HTTP"
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Name = "nlb-sg"
-  }
-}
-
 # Security Group for API Servers
 resource "aws_security_group" "api" {
   name        = "api-sg"
@@ -185,15 +189,15 @@ resource "aws_security_group" "api" {
   vpc_id      = aws_vpc.main.id
 
   ingress {
-    description     = "HTTP from NLB"
-    from_port       = 80
-    to_port         = 80
-    protocol        = "tcp"
-    security_groups = [aws_security_group.nlb.id]
+    description = "HTTP from anywhere (via NLB)"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   ingress {
-    description = "SSH"
+    description = "SSH from VPC"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
@@ -248,13 +252,14 @@ resource "aws_db_subnet_group" "main" {
   }
 }
 
-# RDS MySQL Database
+# RDS MySQL Database - FIXED VERSION
 resource "aws_db_instance" "api" {
   identifier             = "api-db"
   engine                 = "mysql"
-  engine_version         = "8.0.35"
+  engine_version         = "8.0"  # Use major version only, let AWS choose latest
   instance_class         = "db.t3.micro"
   allocated_storage      = 20
+  max_allocated_storage  = 100
   storage_type           = "gp2"
   db_name                = "apidb"
   username               = var.db_username
@@ -264,6 +269,12 @@ resource "aws_db_instance" "api" {
   publicly_accessible    = false
   vpc_security_group_ids = [aws_security_group.database.id]
   db_subnet_group_name   = aws_db_subnet_group.main.name
+  
+  multi_az               = false
+  backup_retention_period = 0
+  monitoring_interval    = 0
+
+  # Remove backup_window and maintenance_window to use defaults
 
   tags = {
     Name = "api-database"
@@ -317,6 +328,8 @@ resource "aws_instance" "api" {
   tags = {
     Name = "api-server-${count.index + 1}"
   }
+
+  depends_on = [aws_nat_gateway.main]
 }
 
 # Target Group Attachment
@@ -327,7 +340,7 @@ resource "aws_lb_target_group_attachment" "api" {
   port             = 80
 }
 
-# Bastion Host (optional, for troubleshooting)
+# Bastion Host
 resource "aws_instance" "bastion" {
   ami                    = data.aws_ami.amazon_linux_2.id
   instance_type          = "t3.micro"
@@ -378,5 +391,10 @@ data "aws_ami" "amazon_linux_2" {
   filter {
     name   = "name"
     values = ["amzn2-ami-hvm-*-x86_64-gp2"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
   }
 }

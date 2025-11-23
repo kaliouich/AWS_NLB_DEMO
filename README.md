@@ -1,16 +1,15 @@
-
 # AWS VPC with Network Load Balancer – Detailed Architecture & Terraform Documentation
 
 ## 📋 Table of Contents
-- [Project Purpose](#project-purpose)
-- [Architecture Overview](#architecture-overview)
-- [Detailed AWS Components](#detailed-aws-components)
+- [🎯 Project Purpose](#-project-purpose)
+- [🏗️ Architecture Overview](#-architecture-overview)
+- [🔧 Detailed AWS Components](#-detailed-aws-components)
 - [💻 The Demo Web Application](#-the-demo-web-application)
-- [Network Load Balancer (Main Demonstration)](#network-load-balancer-main-demonstration)
-- [Network Flow](#network-flow)
-- [Security Considerations](#security-considerations)
-- [Terraform Code Structure](#terraform-code-structure)
-- [🚀 Deployment and Operational Scripts](#deployment-and-operational-scripts)
+- [⭐ Network Load Balancer (Main Demonstration)](#-network-load-balancer-main-demonstration)
+- [🌐 Network Flow](#-network-flow)
+- [🔒 Security Considerations](#-security-considerations)
+- [🛠️ Terraform Code Structure](#-terraform-code-structure)
+- [🚀 Deployment and Operational Scripts](#-deployment-and-operational-scripts)
 
 ---
 
@@ -19,10 +18,10 @@ This project demonstrates how to build a complete AWS infrastructure using Terra
 Everything described here corresponds exclusively to what exists in the provided Terraform code.
 
 Objectives:
-- Present a complete and isolated **VPC** (CIDR: `10.0.0.0/16` by default)
-- Demonstrate the role and behavior of the **NLB**
-- Show the full network flow (Internet → NLB → Private EC2 → RDS)
-- Provide clear technical documentation aligned with the code
+- Present a complete and isolated **VPC** (CIDR: `10.0.0.0/16` by default).
+- Demonstrate the role and behavior of the **NLB**.
+- Show the full network flow (Internet → NLB → Private EC2 → RDS).
+- Provide clear technical documentation aligned with the code.
 
 ---
 
@@ -30,15 +29,15 @@ Objectives:
 The architecture is a **three-tier web application stack** deployed across multiple availability zones within a single VPC.
 
 The architecture includes:
-- A **VPC** with public, private, and database subnets.
-- A **Network Load Balancer** in the public subnets, acting as the public entry point.
-- **EC2 API servers** in the private subnets, running application code.
-- A private **RDS MySQL database** in its own dedicated subnets.
-- **NAT Gateways** for outbound internet access for private resources.
-- A **bastion host** for administrative access.
-- Corresponding **route tables** and **security groups** for network isolation.
+- ☁️ A **VPC** with public, private, and database subnets.
+- ⚖️ A **Network Load Balancer** in the public subnets, acting as the public entry point.
+- 💻 **EC2 API servers** in the private subnets, running application code.
+- 🗄️ A private **RDS MySQL database** in its own dedicated subnets.
+- 🌉 **NAT Gateways** for outbound internet access for private resources.
+- 🛡️ A **bastion host** for administrative access.
+- 🛣️ Corresponding **route tables** and **security groups** for network isolation.
 
-
+![AWS 3-Tier Architecture Diagram](./aws_3-tier_architecture.png)
 
 ---
 
@@ -67,7 +66,7 @@ It enables:
 
 Your architecture includes three subnet types, each spanning multiple availability zones.
 
-#### **Public Subnets**
+#### **🌐 Public Subnets**
 
 CIDRs: `10.0.1.0/24`, `10.0.2.0/24` by default. Used for resources requiring direct internet access:
 
@@ -84,11 +83,11 @@ resource "aws_subnet" "public" {
 }
 ```
 
-#### **Private Subnets**
+#### **🔒 Private Subnets**
 
 CIDRs: `10.0.3.0/24`, `10.0.4.0/24` by default. Used exclusively for **EC2 API servers** (not directly reachable from the Internet).
 
-#### **Database Subnets**
+#### **🛢️ Database Subnets**
 
 CIDRs: `10.0.5.0/24`, `10.0.6.0/24` by default. Dedicated exclusively to the **RDS database** via an `aws_db_subnet_group`.
 
@@ -201,9 +200,9 @@ The network traffic paths are strictly controlled by the route tables and securi
 terraform/
 ├── main.tf        # Main resource declarations
 ├── variables.tf   # Input variables (e.g., CIDR blocks, DB credentials)
-├── outputs.tf     # Outputs (not fully provided, but expected)
+├── outputs.tf     # Outputs (e.g. NLB DNS Name)
 └── user_data/
-    └── api_server.sh # Script to configure the API EC2 instances (inferred from user_data call in main.tf)
+    └── api_server.sh # Script to configure the API EC2 instances
 ```
 
 -----
